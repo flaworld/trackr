@@ -1,0 +1,219 @@
+// Marketing Task Tracker — Prisma schema (V1)
+// Datasource is PostgreSQL. Enum-like fields are modelled as String with the
+// valid values centralised in src/lib/constants.ts (kept that way so the schema
+// stays portable and the app validates values in one place).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // App queries use DATABASE_URL (on Supabase: the pooled/pgbouncer URL).
+  // Migrations use DIRECT_URL (on Supabase: the direct 5432 connection).
+  // Locally, set both to the same docker-compose Postgres URL.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- users (spec §4) ---------------------------------------------------------
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String? // bcrypt hash; null for SSO-only users
+  entraOid  String?  @unique @map("entra_oid") // Microsoft Entra object id
+  role      String   @default("member") // admin | manager | member | viewer
+  managerId String?  @map("manager_id") // self-FK: who this user reports to
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  manager         User?                  @relation("UserManager", fields: [managerId], references: [id])
+  reports         User[]                 @relation("UserManager")
+  ownedTasks      Task[]                 @relation("TaskOwner")
+  createdTasks    Task[]                 @relation("TaskCreator")
+  historyChanges  TaskHistory[]
+  reviewedSuggest TaskUpdateSuggestion[]
+  mailboxAccess   MailboxAccess[]
+
+  @@index([managerId])
+  @@map("users")
+}
+
+// --- tasks (spec §4) ---------------------------------------------------------
+model Task {
+  id          String    @id @default(cuid())
+  taskCode    String    @unique @map("task_code") // e.g. TASK-104
+  assignedDate DateTime @default(now()) @map("assigned_date")
+  taskName    String    @map("task_name")
+  ownerId     String?   @map("owner_id")
+  status      String    @default("Not Started")
+  priority    String    @default("Medium") // Low | Medium | High | Urgent
+  dueDate     DateTime? @map("due_date")
+  lastUpdated DateTime  @default(now()) @map("last_updated")
+  latestNotes String?   @map("latest_notes")
+  createdById String?   @map("created_by")
+  mailboxId   String?   @map("mailbox_id") // source stream (email mailbox or General)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  archivedAt  DateTime? @map("archived_at")
+
+  owner       User?    @relation("TaskOwner", fields: [ownerId], references: [id])
+  createdBy   User?    @relation("TaskCreator", fields: [createdById], references: [id])
+  mailbox     Mailbox? @relation(fields: [mailboxId], references: [id])
+
+  history          TaskHistory[]
+  suggestions      TaskUpdateSuggestion[]
+  matchedEmails    EmailUpdate[]
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([dueDate])
+  @@index([mailboxId])
+  @@map("tasks")
+}
+
+// --- email_updates (spec §4) -------------------------------------------------
+model EmailUpdate {
+  id               String    @id @default(cuid())
+  messageId        String    @unique @map("message_id") // idempotency key
+  mailboxUid       String?   @map("mailbox_uid")
+  fromEmail        String?   @map("from_email")
+  fromName         String?   @map("from_name")
+  subject          String?
+  bodyText         String?   @map("body_text")
+  bodyHtml         String?   @map("body_html")
+  receivedAt       DateTime? @map("received_at")
+  processedAt      DateTime? @map("processed_at")
+  processingStatus String    @default("received") @map("processing_status")
+  // received | parsed | matched | needs_review | approved | rejected | failed
+  matchedTaskId    String?   @map("matched_task_id")
+  matchConfidence  Int?      @map("match_confidence")
+  extractedStatus  String?   @map("extracted_status")
+  extractedDueDate DateTime? @map("extracted_due_date")
+  extractedSummary String?   @map("extracted_summary")
+  rawHeaders       String?   @map("raw_headers")
+  errorMessage     String?   @map("error_message")
+  mailboxId        String?   @map("mailbox_id") // which mailbox this email arrived in
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  matchedTask  Task?                  @relation(fields: [matchedTaskId], references: [id])
+  mailbox      Mailbox?               @relation(fields: [mailboxId], references: [id])
+  suggestions  TaskUpdateSuggestion[]
+  attachments  EmailAttachment[]
+  history      TaskHistory[]
+
+  @@index([processingStatus])
+  @@index([mailboxId])
+  @@map("email_updates")
+}
+
+// --- task_update_suggestions (spec §4) ---------------------------------------
+model TaskUpdateSuggestion {
+  id              String    @id @default(cuid())
+  emailUpdateId   String    @map("email_update_id")
+  taskId          String?   @map("task_id")
+  suggestedStatus String?   @map("suggested_status")
+  suggestedDueDate DateTime? @map("suggested_due_date")
+  suggestedNotes  String?   @map("suggested_notes")
+  confidenceScore Int       @default(0) @map("confidence_score")
+  reason          String?
+  reviewStatus    String    @default("pending") @map("review_status") // pending | approved | rejected
+  reviewedById    String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  emailUpdate EmailUpdate @relation(fields: [emailUpdateId], references: [id], onDelete: Cascade)
+  task        Task?       @relation(fields: [taskId], references: [id])
+  reviewedBy  User?       @relation(fields: [reviewedById], references: [id])
+
+  @@index([reviewStatus])
+  @@map("task_update_suggestions")
+}
+
+// --- task_history (spec §4) --------------------------------------------------
+model TaskHistory {
+  id                  String    @id @default(cuid())
+  taskId              String    @map("task_id")
+  changedById         String?   @map("changed_by")
+  sourceType          String    @map("source_type") // manual | email | system
+  sourceEmailUpdateId String?   @map("source_email_update_id")
+  previousStatus      String?   @map("previous_status")
+  newStatus           String?   @map("new_status")
+  previousDueDate     DateTime? @map("previous_due_date")
+  newDueDate          DateTime? @map("new_due_date")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  task            Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  changedBy       User?        @relation(fields: [changedById], references: [id])
+  sourceEmail     EmailUpdate? @relation(fields: [sourceEmailUpdateId], references: [id])
+
+  @@index([taskId])
+  @@map("task_history")
+}
+
+// --- email_attachments (spec §4) ---------------------------------------------
+model EmailAttachment {
+  id            String   @id @default(cuid())
+  emailUpdateId String   @map("email_update_id")
+  filename      String?
+  contentType   String?  @map("content_type")
+  fileSize      Int?     @map("file_size")
+  storageUrl    String?  @map("storage_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  emailUpdate EmailUpdate @relation(fields: [emailUpdateId], references: [id], onDelete: Cascade)
+
+  @@map("email_attachments")
+}
+
+// --- mailboxes (V2: multi-mailbox source streams) ---------------------------
+// One row per task source. Inbound mailboxes (tracker-cmo@, tracker-om@) are
+// polled over IMAP; non-inbound streams (e.g. "General") just group tasks.
+// SECURITY: IMAP passwords are NOT stored here — they are resolved from a
+// per-mailbox env var (IMAP_PASSWORD_<KEY>) at connect time.
+model Mailbox {
+  id              String   @id @default(cuid())
+  key             String   @unique // e.g. "cmo", "om", "general"
+  displayName     String   @map("display_name")
+  address         String?  // tracker-cmo@fwsom.com (null for non-inbound)
+  inbound         Boolean  @default(true) // polled over IMAP?
+  active          Boolean  @default(true)
+  imapHost        String?  @map("imap_host")
+  imapPort        Int?     @map("imap_port")
+  imapSecure      Boolean  @default(true) @map("imap_secure")
+  imapUser        String?  @map("imap_user")
+  allowSelfSigned Boolean  @default(false) @map("allow_self_signed")
+  processedFolder String?  @map("processed_folder")
+  failedFolder    String?  @map("failed_folder")
+  moveProcessed   Boolean  @default(false) @map("move_processed")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tasks        Task[]
+  emailUpdates EmailUpdate[]
+  access       MailboxAccess[]
+
+  @@map("mailboxes")
+}
+
+// --- mailbox_access (V2) -----------------------------------------------------
+// Grants a user the FULL stream of a mailbox regardless of assignment. This is
+// how the "CMO Tracker" works (CMO sees all tracker-cmo@ tasks) and how a
+// mailbox owner can review that mailbox's email suggestions.
+model MailboxAccess {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  mailboxId  String   @map("mailbox_id")
+  canViewAll Boolean  @default(false) @map("can_view_all")
+  canReview  Boolean  @default(false) @map("can_review")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mailboxId])
+  @@map("mailbox_access")
+}

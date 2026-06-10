@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env*.local
+npm-debug.log*
+logs
+*.md
+docs
+docker-compose.yml
+.DS_Store
+*.tsbuildinfo
+.vercel
+prisma/*.db
+prisma/*.db-*

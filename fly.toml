@@ -1,0 +1,44 @@
+# Fly.io configuration for the Marketing Task Tracker.
+# `fly launch` will set `app` and `primary_region` for you (or edit them here).
+# Two process groups run from the SAME image:
+#   app    — the Next.js web server (HTTP, public)
+#   worker — the IMAP poller (no public port; polls every WORKER_CRON)
+
+app = "trackr-cmo"            # <-- replace with your Fly app name
+primary_region = "iad"        # <-- pick a region near your mail server / users
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Apply DB migrations before each release (uses DIRECT_URL).
+  release_command = "npx prisma migrate deploy"
+
+[env]
+  NODE_ENV = "production"
+  DEFAULT_INBOUND_MAILBOX_KEY = "cmo"
+  WORKER_CRON = "*/3 * * * *"
+  # APP_BASE_URL is set as a secret/var to your real https URL (see DEPLOY.md).
+
+[processes]
+  app = "npm run start"
+  worker = "npm run worker"
+
+# Public HTTP only for the web app process.
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false   # keep the web app warm (sessions/SSO)
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["worker"]
