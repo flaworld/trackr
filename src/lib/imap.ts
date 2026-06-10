@@ -132,13 +132,22 @@ export async function pollMailbox(mb: MailboxConfig): Promise<PollStats> {
 
     const lock = await client.getMailboxLock("INBOX");
     try {
+      // IMPORTANT: fully consume the fetch stream BEFORE issuing any other
+      // IMAP commands. Sending commands (flag/move) while the fetch response
+      // is still streaming deadlocks the connection (imapflow limitation) —
+      // it then stalls until socketTimeout. Collect first, process after.
+      const pending: Array<{ uid: number; source: Buffer }> = [];
       for await (const message of client.fetch(
         { seen: false },
-        { uid: true, source: true, envelope: true },
+        { uid: true, source: true },
       )) {
+        pending.push({ uid: message.uid, source: message.source as Buffer });
+      }
+
+      for (const message of pending) {
         stats.fetched++;
         try {
-          const parsed = await simpleParser(message.source as Buffer);
+          const parsed = await simpleParser(message.source);
           const email: ParsedEmail = {
             messageId:
               parsed.messageId ??
@@ -176,6 +185,10 @@ export async function pollMailbox(mb: MailboxConfig): Promise<PollStats> {
           } else if (result.status === "skipped") {
             stats.skipped++;
             await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true });
+            if (moveProcessed) {
+              // Already ingested previously — file it away too.
+              await client.messageMove(message.uid, processedFolder, { uid: true });
+            }
           } else {
             stats.failed++;
             console.error(`[imap:${mb.key}] failed ${email.messageId}: ${result.error}`);
