@@ -4,7 +4,7 @@
 #   app    — the Next.js web server (HTTP, public)
 #   worker — the IMAP poller (no public port; polls every WORKER_CRON)
 
-app = "trackr-cmo"            # <-- replace with your Fly app name
+app = "trackr-om"
 primary_region = "iad"        # <-- pick a region near your mail server / users
 
 [build]
