@@ -6,6 +6,7 @@ import {
   randomToken,
   pkceChallenge,
 } from "@/lib/oidc";
+import { absoluteUrl } from "@/lib/urls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,9 +15,7 @@ export const dynamic = "force-dynamic";
 // state + nonce in short-lived httpOnly cookies, then redirect to Microsoft.
 export async function GET(req: NextRequest) {
   if (!msAuthEnabled()) {
-    return NextResponse.redirect(
-      new URL("/login?error=sso_disabled", req.url),
-    );
+    return NextResponse.redirect(absoluteUrl("/login?error=sso_disabled"));
   }
 
   const state = randomToken(16);
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
     url = await buildAuthorizationUrl({ state, nonce, codeChallenge });
   } catch (e) {
     console.error("[ms-login] failed to build auth URL:", e);
-    return NextResponse.redirect(new URL("/login?error=sso_config", req.url));
+    return NextResponse.redirect(absoluteUrl("/login?error=sso_config"));
   }
 
   const jar = await cookies();

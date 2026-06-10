@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForClaims, resolveMicrosoftUser } from "@/lib/oidc";
 import { createSession } from "@/lib/auth";
+import { absoluteUrl } from "@/lib/urls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function fail(req: NextRequest, code: string) {
-  return NextResponse.redirect(new URL(`/login?error=${code}`, req.url));
+function fail(_req: NextRequest, code: string) {
+  return NextResponse.redirect(absoluteUrl(`/login?error=${code}`));
 }
 
 // GET /api/auth/microsoft/callback — handle the OIDC redirect: validate state,
@@ -58,6 +59,6 @@ export async function GET(req: NextRequest) {
 
   await createSession(result.user);
   return NextResponse.redirect(
-    new URL(next.startsWith("/") ? next : "/marketing-tasks", req.url),
+    absoluteUrl(next.startsWith("/") ? next : "/marketing-tasks"),
   );
 }
