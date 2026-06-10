@@ -37,6 +37,19 @@ export function MailboxAdminClient() {
     load();
   }, [load]);
 
+  const remove = async (m: MailboxAdminRow) => {
+    if (!window.confirm(`Delete mailbox "${m.displayName}" (${m.key})? This cannot be undone.`)) {
+      return;
+    }
+    setError(null);
+    const res = await fetch(`/api/admin/mailboxes/${m.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Delete failed");
+      return;
+    }
+    load();
+  };
+
   const test = async (m: MailboxAdminRow) => {
     setTests((t) => ({ ...t, [m.id]: { status: "running" } }));
     try {
@@ -153,6 +166,14 @@ export function MailboxAdminClient() {
                   >
                     Edit
                   </button>
+                  {m._count.tasks === 0 && m._count.emailUpdates === 0 && (
+                    <button
+                      onClick={() => remove(m)}
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
 

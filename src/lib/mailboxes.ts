@@ -105,3 +105,26 @@ export async function updateMailbox(id: string, input: Partial<MailboxInput>) {
 export async function getMailboxConfig(id: string) {
   return prisma.mailbox.findUnique({ where: { id }, select: FULL_SELECT });
 }
+
+// Delete a mailbox — only allowed when nothing references it (no tasks, no
+// emails). Access grants cascade away automatically.
+export async function deleteMailbox(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const mb = await prisma.mailbox.findUnique({
+    where: { id },
+    select: {
+      key: true,
+      _count: { select: { tasks: true, emailUpdates: true } },
+    },
+  });
+  if (!mb) return { ok: false, error: "Mailbox not found" };
+  if (mb._count.tasks > 0 || mb._count.emailUpdates > 0) {
+    return {
+      ok: false,
+      error: `Mailbox "${mb.key}" has ${mb._count.tasks} task(s) and ${mb._count.emailUpdates} email(s) referencing it. Deactivate it instead.`,
+    };
+  }
+  await prisma.mailbox.delete({ where: { id } });
+  return { ok: true };
+}
