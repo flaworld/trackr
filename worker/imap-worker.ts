@@ -12,6 +12,15 @@ import cron from "node-cron";
 import { pollAllMailboxes } from "../src/lib/imap";
 import { prisma } from "../src/lib/db";
 
+// Last-resort guards: a stray socket error from one mailbox must never kill
+// the whole polling process (Fly parks machines after repeated crashes).
+process.on("unhandledRejection", (reason) => {
+  console.error("[worker] unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[worker] uncaught exception:", err);
+});
+
 async function main() {
   const runOnce = process.env.RUN_ONCE === "true";
   if (runOnce) {

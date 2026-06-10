@@ -119,6 +119,13 @@ export async function pollMailbox(mb: MailboxConfig): Promise<PollStats> {
     return stats;
   }
 
+  // imapflow emits 'error' on the instance for socket-level failures (e.g.
+  // timeouts between awaited ops). Without a listener, Node crashes the whole
+  // process. Log and let the in-flight awaited op fail into its own catch.
+  client.on("error", (err: Error) => {
+    console.error(`[imap:${mb.key}] client error:`, err?.message ?? err);
+  });
+
   try {
     await client.connect();
     if (moveProcessed) await ensureFolders(client, [processedFolder, failedFolder]);
@@ -268,6 +275,9 @@ export async function testMailboxConnection(mb: MailboxConfig): Promise<TestResu
   } catch (e) {
     return { ok: false, passwordSet: true, error: e instanceof Error ? e.message : String(e) };
   }
+  client.on("error", (err: Error) => {
+    console.error(`[imap:${mb.key}] test client error:`, err?.message ?? err);
+  });
   try {
     await client.connect();
     const folders = (await client.list()).map((m) => m.path);
