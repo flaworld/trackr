@@ -1,11 +1,41 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Upload, Users } from "lucide-react";
+import { toast } from "sonner";
 import { ROLES } from "@/lib/constants";
-import { Modal } from "./Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { AdminUser, MailboxAdmin } from "@/lib/types";
 
-const inputCls =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
+const NONE = "__none__";
 
 export function AdminClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -45,139 +75,142 @@ export function AdminClient({ currentUserId }: { currentUserId: string }) {
 
   const toggleActive = async (u: AdminUser) => {
     if (u.id === currentUserId) return;
-    await fetch(`/api/admin/users/${u.id}`, {
+    const res = await fetch(`/api/admin/users/${u.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !u.active }),
     });
+    if (res.ok) toast.success(u.active ? "User deactivated" : "User reactivated");
     load();
   };
 
   return (
-    <div>
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Users &amp; Access</h1>
-          <p className="text-sm text-slate-500">
-            {loading ? "Loading…" : `${users.length} users`}
-          </p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Users className="h-4 w-4" />
+          {loading ? "Loading…" : `${users.length} users`}
+          <label className="ml-4 flex cursor-pointer items-center gap-2">
+            <Checkbox
+              checked={showInactive}
+              onCheckedChange={(v) => setShowInactive(v === true)}
+            />
+            Show deactivated
+          </label>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setImporting(true)}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-          >
-            Import CSV
-          </button>
-          <button
-            onClick={() => setEdit("new")}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-          >
-            + Add User
-          </button>
+          <Button variant="outline" onClick={() => setImporting(true)}>
+            <Upload /> Import CSV
+          </Button>
+          <Button onClick={() => setEdit("new")}>
+            <Plus /> Add User
+          </Button>
         </div>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
       )}
 
-      <label className="mb-3 flex items-center gap-1.5 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          checked={showInactive}
-          onChange={(e) => setShowInactive(e.target.checked)}
-        />
-        Show deactivated
-      </label>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              {["Name", "Email", "Role", "Manager", "Sign-in", "Access", "Status", ""].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {shown.map((u) => (
-              <tr key={u.id} className={u.active ? "" : "bg-slate-50/60 text-slate-400"}>
-                <td className="px-3 py-2.5 font-medium text-slate-900">
-                  {u.name}
-                  {u.id === currentUserId && (
-                    <span className="ml-1 text-xs font-normal text-slate-400">(you)</span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5 text-slate-600">{u.email}</td>
-                <td className="px-3 py-2.5">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-700">
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 text-slate-600">{u.manager?.name ?? "—"}</td>
-                <td className="px-3 py-2.5 text-xs text-slate-500">
-                  {u.authMethods.length ? u.authMethods.join(", ") : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-xs text-slate-500">
-                  {u.mailboxAccess.length
-                    ? u.mailboxAccess
-                        .map(
-                          (g) =>
-                            `${g.mailbox.displayName}${g.canViewAll ? "·view" : ""}${g.canReview ? "·review" : ""}`,
-                        )
-                        .join(", ")
-                    : "—"}
-                </td>
-                <td className="px-3 py-2.5">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      u.active
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-200 text-slate-500"
-                    }`}
-                  >
-                    {u.active ? "active" : "deactivated"}
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => setEdit(u)}
-                    className="rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                  >
-                    Edit
-                  </button>
-                  {u.id !== currentUserId && (
-                    <button
-                      onClick={() => toggleActive(u)}
-                      className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
-                    >
-                      {u.active ? "Deactivate" : "Reactivate"}
-                    </button>
-                  )}
-                </td>
-              </tr>
+      <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+        {loading ? (
+          <div className="space-y-3 p-6">
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
             ))}
-            {!loading && shown.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-slate-400">
-                  No users.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Manager</TableHead>
+                <TableHead>Sign-in</TableHead>
+                <TableHead>Access</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.map((u) => (
+                <TableRow key={u.id} className={u.active ? "" : "opacity-50"}>
+                  <TableCell className="font-medium">
+                    {u.name}
+                    {u.id === currentUserId && (
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        (you)
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="capitalize">
+                      {u.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {u.manager?.name ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {u.authMethods.length ? u.authMethods.join(", ") : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {u.mailboxAccess.length
+                      ? u.mailboxAccess
+                          .map(
+                            (g) =>
+                              `${g.mailbox.displayName}${g.canViewAll ? "·view" : ""}${g.canReview ? "·review" : ""}`,
+                          )
+                          .join(", ")
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="muted"
+                      className={
+                        u.active
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : ""
+                      }
+                    >
+                      {u.active ? "active" : "deactivated"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right">
+                    <Button variant="ghost" size="sm" onClick={() => setEdit(u)}>
+                      Edit
+                    </Button>
+                    {u.id !== currentUserId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => toggleActive(u)}
+                      >
+                        {u.active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {shown.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                    No users.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {edit && (
-        <UserForm
+        <UserDialog
           user={edit === "new" ? null : edit}
           users={users}
           mailboxes={mailboxes}
@@ -185,12 +218,13 @@ export function AdminClient({ currentUserId }: { currentUserId: string }) {
           onClose={() => setEdit(null)}
           onSaved={() => {
             setEdit(null);
+            toast.success(edit === "new" ? "User created" : "User updated");
             load();
           }}
         />
       )}
       {importing && (
-        <ImportModal
+        <ImportDialog
           onClose={() => setImporting(false)}
           onDone={() => {
             setImporting(false);
@@ -202,7 +236,7 @@ export function AdminClient({ currentUserId }: { currentUserId: string }) {
   );
 }
 
-function UserForm({
+function UserDialog({
   user,
   users,
   mailboxes,
@@ -221,7 +255,7 @@ function UserForm({
   const [email, setEmail] = useState(user?.email ?? "");
   const [name, setName] = useState(user?.name ?? "");
   const [role, setRole] = useState(user?.role ?? "member");
-  const [managerId, setManagerId] = useState(user?.managerId ?? "");
+  const [managerId, setManagerId] = useState(user?.managerId ?? NONE);
   const [password, setPassword] = useState("");
   const [setPw, setSetPw] = useState(false);
   const [grants, setGrants] = useState<
@@ -260,7 +294,7 @@ function UserForm({
             ...(isNew ? { email } : {}),
             name,
             role,
-            managerId: managerId || null,
+            managerId: managerId === NONE ? null : managerId,
             grants: grantsArr,
             ...(setPw ? { password } : {}),
           }),
@@ -278,132 +312,140 @@ function UserForm({
   const managerOptions = users.filter((u) => u.id !== user?.id && u.active);
 
   return (
-    <Modal open onClose={onClose} title={isNew ? "Add User" : `Edit ${user!.name}`} wide>
-      {err && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
-      <div className="grid grid-cols-2 gap-3">
-        <label className="col-span-2 block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Email (M365)</span>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={!isNew}
-            className={`${inputCls} ${!isNew ? "bg-slate-100 text-slate-500" : ""}`}
-            placeholder="person@fwsom.com"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Role</span>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            disabled={isSelf}
-            className={`${inputCls} ${isSelf ? "bg-slate-100" : ""}`}
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          {isSelf && <span className="text-xs text-slate-400">Can't change your own role</span>}
-        </label>
-        <label className="col-span-2 block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Manager</span>
-          <select
-            value={managerId}
-            onChange={(e) => setManagerId(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">— none —</option>
-            {managerOptions.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.email})
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Mailbox grants */}
-      <div className="mt-4">
-        <p className="mb-2 text-sm font-medium text-slate-700">Mailbox access</p>
-        <div className="space-y-1.5 rounded-lg border border-slate-200 p-3">
-          {mailboxes.map((m) => (
-            <div key={m.id} className="flex items-center justify-between text-sm">
-              <span className="text-slate-700">
-                {m.displayName}
-                <span className="ml-1 text-xs text-slate-400">{m.inbound ? "(inbound)" : ""}</span>
-              </span>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={grants[m.id]?.canViewAll ?? false}
-                    onChange={(e) => setGrant(m.id, "canViewAll", e.target.checked)}
-                  />
-                  View all
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={grants[m.id]?.canReview ?? false}
-                    onChange={(e) => setGrant(m.id, "canReview", e.target.checked)}
-                  />
-                  Review
-                </label>
-              </div>
-            </div>
-          ))}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{isNew ? "Add User" : `Edit ${user!.name}`}</DialogTitle>
+          {isNew && (
+            <DialogDescription>
+              Use their Microsoft 365 email — they'll sign in with SSO.
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        {err && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {err}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 space-y-1.5">
+            <Label>Email (M365)</Label>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={!isNew}
+              placeholder="person@fwsom.com"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={setRole} disabled={isSelf}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((r) => (
+                  <SelectItem key={r} value={r} className="capitalize">
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isSelf && (
+              <p className="text-xs text-muted-foreground">Can't change your own role</p>
+            )}
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label>Manager</Label>
+            <Select value={managerId} onValueChange={setManagerId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>— none —</SelectItem>
+                {managerOptions.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <p className="mt-1 text-xs text-slate-400">
-          “View all” = sees the whole mailbox stream (e.g. CMO Tracker). “Review” = can
-          approve that mailbox's email suggestions.
-        </p>
-      </div>
 
-      {/* Optional password */}
-      <div className="mt-4">
-        <label className="flex items-center gap-1.5 text-sm text-slate-700">
-          <input type="checkbox" checked={setPw} onChange={(e) => setSetPw(e.target.checked)} />
-          Set a password (fallback login){user?.hasPassword ? " — replaces existing" : ""}
-        </label>
-        {setPw && (
-          <input
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="min 8 characters (leave blank to clear)"
-            className={`${inputCls} mt-2`}
-          />
-        )}
-        {!setPw && (
-          <p className="mt-1 text-xs text-slate-400">
-            Leave unchecked for Microsoft-only sign-in.
+        <div className="space-y-2">
+          <Label>Mailbox access</Label>
+          <div className="space-y-2.5 rounded-lg border p-4">
+            {mailboxes.map((m) => (
+              <div key={m.id} className="flex items-center justify-between text-sm">
+                <span>
+                  {m.displayName}
+                  {m.inbound && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">(inbound)</span>
+                  )}
+                </span>
+                <div className="flex gap-5">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={grants[m.id]?.canViewAll ?? false}
+                      onCheckedChange={(v) => setGrant(m.id, "canViewAll", v === true)}
+                    />
+                    View all
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={grants[m.id]?.canReview ?? false}
+                      onCheckedChange={(v) => setGrant(m.id, "canReview", v === true)}
+                    />
+                    Review
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            "View all" shows the entire mailbox stream (e.g. CMO Tracker). "Review" allows
+            approving that mailbox's email suggestions.
           </p>
-        )}
-      </div>
+        </div>
 
-      <div className="mt-5 flex justify-end gap-2">
-        <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-          Cancel
-        </button>
-        <button
-          onClick={submit}
-          disabled={saving || (isNew && !email.trim())}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-    </Modal>
+        <div className="space-y-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={setPw} onCheckedChange={(v) => setSetPw(v === true)} />
+            Set a password (fallback login){user?.hasPassword ? " — replaces existing" : ""}
+          </label>
+          {setPw ? (
+            <Input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="min 8 characters (leave blank to clear)"
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Leave unchecked for Microsoft-only sign-in.
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving || (isNew && !email.trim())}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [csv, setCsv] = useState("email,name,role,manager\n");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
@@ -424,7 +466,9 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         body: JSON.stringify({ csv }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Import failed");
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      toast.success(`Imported: ${data.created} created, ${data.updated} updated`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -433,53 +477,57 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   };
 
   return (
-    <Modal open onClose={onClose} title="Import users from CSV" wide>
-      {err && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
-      <p className="mb-2 text-sm text-slate-600">
-        Header row required. Columns: <code className="text-slate-800">email</code> (required),{" "}
-        <code className="text-slate-800">name</code>, <code className="text-slate-800">role</code>{" "}
-        (admin/manager/member/viewer), <code className="text-slate-800">manager</code> (manager's
-        email). Existing users are updated; managers are linked after all rows are created.
-      </p>
-      <textarea
-        value={csv}
-        onChange={(e) => setCsv(e.target.value)}
-        rows={10}
-        spellCheck={false}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs focus:border-brand-500 focus:outline-none"
-        placeholder={"email,name,role,manager\njane@fwsom.com,Jane Doe,manager,\nbob@fwsom.com,Bob Lee,member,jane@fwsom.com"}
-      />
-
-      {result && (
-        <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
-          <p className="font-medium text-slate-700">
-            Created {result.created} · Updated {result.updated} · Errors{" "}
-            {result.errors.length}
-          </p>
-          {result.errors.length > 0 && (
-            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-red-600">
-              {result.errors.map((e, i) => (
-                <li key={i}>
-                  {e.email}: {e.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      <div className="mt-5 flex justify-end gap-2">
-        <button onClick={result ? onDone : onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-          {result ? "Done" : "Cancel"}
-        </button>
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {busy ? "Importing…" : "Import"}
-        </button>
-      </div>
-    </Modal>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Import users from CSV</DialogTitle>
+          <DialogDescription>
+            Header row required. Columns: <code>email</code> (required), <code>name</code>,{" "}
+            <code>role</code> (admin/manager/member/viewer), <code>manager</code> (manager's
+            email). Existing users are updated; managers are linked after all rows are created.
+          </DialogDescription>
+        </DialogHeader>
+        {err && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {err}
+          </div>
+        )}
+        <Textarea
+          value={csv}
+          onChange={(e) => setCsv(e.target.value)}
+          rows={10}
+          spellCheck={false}
+          className="font-mono text-xs"
+          placeholder={
+            "email,name,role,manager\njane@fwsom.com,Jane Doe,manager,\nbob@fwsom.com,Bob Lee,member,jane@fwsom.com"
+          }
+        />
+        {result && (
+          <div className="rounded-lg bg-muted p-4 text-sm">
+            <p className="font-medium">
+              Created {result.created} · Updated {result.updated} · Errors{" "}
+              {result.errors.length}
+            </p>
+            {result.errors.length > 0 && (
+              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-destructive">
+                {result.errors.map((e, i) => (
+                  <li key={i}>
+                    {e.email}: {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={result ? onDone : onClose}>
+            {result ? "Done" : "Cancel"}
+          </Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy ? "Importing…" : "Import"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

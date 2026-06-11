@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/constants";
 import { canReviewSuggestion } from "@/lib/access";
-import { AppHeader } from "@/components/AppHeader";
+import { AppShell } from "@/components/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -33,14 +33,13 @@ export default async function MarketingTasksLayout({
   }
 
   return (
-    <div className="min-h-screen">
-      <AppHeader
-        user={{ name: user.name, email: user.email, role: user.role }}
-        pendingCount={pendingCount}
-        canReview={canReview}
-        canManageUsers={can(user.role, "users:manage")}
-      />
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
-    </div>
+    <AppShell
+      user={{ name: user.name, email: user.email, role: user.role }}
+      pendingCount={pendingCount}
+      canReview={canReview}
+      canManageUsers={can(user.role, "users:manage")}
+    >
+      {children}
+    </AppShell>
   );
 }

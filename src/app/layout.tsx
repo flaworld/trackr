@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,11 +14,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) inject
-          attributes onto <body> after SSR, causing a harmless hydration
-          mismatch. This suppresses only that body-attribute noise. */}
-      <body suppressHydrationWarning>{children}</body>
+    // suppressHydrationWarning: next-themes mutates <html> class on the client,
+    // and browser extensions (e.g. Grammarly) inject attributes onto <body>.
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ThemeProvider>
+          {children}
+          <Toaster richColors position="bottom-right" />
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

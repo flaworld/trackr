@@ -2,10 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+/* Friendly & spacious theme (Asana-like): warm whites, violet primary,
+   generous radius. Dark mode via .dark class (next-themes). */
+@layer base {
+  :root {
+    --background: 40 33% 99%;
+    --foreground: 240 10% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 16%;
+    --primary: 252 82% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 250 30% 96%;
+    --secondary-foreground: 252 40% 35%;
+    --muted: 40 20% 95%;
+    --muted-foreground: 240 6% 44%;
+    --accent: 250 50% 95%;
+    --accent-foreground: 252 50% 35%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 12% 90%;
+    --input: 240 12% 87%;
+    --ring: 252 82% 62%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 12% 9%;
+    --foreground: 240 10% 92%;
+    --card: 240 10% 12%;
+    --card-foreground: 240 10% 92%;
+    --popover: 240 10% 12%;
+    --popover-foreground: 240 10% 92%;
+    --primary: 252 85% 70%;
+    --primary-foreground: 252 50% 12%;
+    --secondary: 250 18% 20%;
+    --secondary-foreground: 250 40% 85%;
+    --muted: 240 8% 17%;
+    --muted-foreground: 240 6% 62%;
+    --accent: 250 25% 22%;
+    --accent-foreground: 250 50% 88%;
+    --destructive: 0 65% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 8% 20%;
+    --input: 240 8% 24%;
+    --ring: 252 85% 70%;
+  }
 }
 
-body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
 }
